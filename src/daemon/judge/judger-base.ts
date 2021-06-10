@@ -1,5 +1,5 @@
 import { TestData, SubtaskScoringType, TestcaseJudge } from '../interfaces';
-import { CompilationResult, JudgeResult, TaskStatus, SubtaskResult, TestcaseDetails } from '../../interfaces';
+import { CompilationResult, JudgeResult, TaskStatus, SubtaskResult, TestcaseDetails, TestcaseResultType } from '../../interfaces';
 import { Language } from '../../languages';
 import { compile } from './compile';
 import winston = require('winston');
@@ -85,22 +85,43 @@ export abstract class JudgerBase {
             const currentResult = results[subtaskIndex];
             const currentTask = this.testData.subtasks[subtaskIndex];
             const updateCurrentSubtaskScore = () => updateSubtaskScore(currentTask, currentResult);
-            let needFail:boolean=false;
-            for(let index=0;index<currentTask.needNumber;index++){
-                let needIndex=currentTask.need[index]-1;
-                if(results[needIndex].score!=this.testData.subtasks[needIndex].score){
-                    results[subtaskIndex].score=0;
-                    needFail=true;
-                    for (let taskIndex = 0; taskIndex < currentTask.cases.length; taskIndex++) {
-                        const currentTaskResult = currentResult.cases[taskIndex];
-                        currentTaskResult.status = TaskStatus.Skipped;
-                    }
-                    currentTask.score=0;
-                }
+            let dependencyFail:boolean = false;
+            if(currentTask.need !== undefined) {
+				for(let index=0; index < currentTask.need.length; index++) {
+					let dependencyIndex = currentTask.need[index] - 1;
+					for (let caseIndex = 0; caseIndex < results[dependencyIndex].cases.length; caseIndex++) {
+						if(results[dependencyIndex].cases[caseIndex].result.type !== TestcaseResultType.Accepted){
+							results[subtaskIndex].score=0;
+							dependencyFail = true;
+							for (let taskIndex = 0; taskIndex < currentTask.cases.length; taskIndex++) {
+								const currentTaskResult = currentResult.cases[taskIndex];
+								currentTaskResult.status = TaskStatus.Skipped;
+							}
+							currentTask.score=0;
+						}
+					}
+					//updateCurrentSubtaskScore();
+				}
+			}
+			if(currentTask.dependency !== undefined) {
+				for(let index = 0; index < currentTask.dependency.length; index++) {
+					let dependencyIndex = currentTask.dependency[index] - 1;
+					for (let caseIndex = 0; caseIndex < results[dependencyIndex].cases.length; caseIndex++) {
+						if(results[dependencyIndex].cases[caseIndex].result.type !== TestcaseResultType.Accepted){
+							results[subtaskIndex].score=0;
+							dependencyFail = true;
+							for (let taskIndex = 0; taskIndex < currentTask.cases.length; taskIndex++) {
+								const currentTaskResult = currentResult.cases[taskIndex];
+								currentTaskResult.status = TaskStatus.Skipped;
+							}
+							currentTask.score=0;
+						}
+					}
                 //updateCurrentSubtaskScore();
-            }
-            winston.warn("subtask need check finish!");
-            if(needFail){
+         	   }
+			}
+            //winston.warn("subtask need check finish!");
+			if(dependencyFail){
                 updateCurrentSubtaskScore();
                 await reportProgress();
                 winston.verbose(`Subtask ${subtaskIndex}, finished`);

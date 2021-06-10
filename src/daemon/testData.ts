@@ -12,8 +12,8 @@ export interface UserSubtask {
     score: number;
     type: string;
     cases: (string | number)[];
-    needNumber?: number;
     need?: number[];
+	dependency: number[];
 }
 
 export interface UserConfigFile {
@@ -34,20 +34,6 @@ function filterHyphen(input: string): string {
         return input;
 }
 
-async function fileIsExit(filePath: string): Promise<Boolean> {
-    /*var isExit=false;
-    await fse.exists(filePath,function(exists){
-        if(exists){
-            isExit=true;
-        }
-    });
-    return isExit;*/
-    try{
-	return fse.existsSync(filePath);
-    }catch(e){
-	return false;
-    }
-}
 function parseScoringType(typeString: string): SubtaskScoringType {
     if (typeString === 'sum')
         return SubtaskScoringType.Summation;
@@ -86,8 +72,8 @@ async function parseYamlContent(obj: UserConfigFile, dataName: string): Promise<
                 userOutputFile: obj.userOutput ? filterPath(obj.userOutput.replace('#', c.toString())) : null,
                 name: c.toString()
             })),
-            needNumber:s.needNumber,
-            need:s.need
+            need:s.need,
+			dependency:s.dependency
         })),
         spj: obj.specialJudge && await parseExecutable(obj.specialJudge, dataPath),
         extraSourceFiles: extraFiles,
@@ -107,7 +93,7 @@ export async function readRulesFile(dataName: string): Promise<TestData> {
         let spj: Executable = null;
         for (const lang of languages) {
             const spjName = pathLib.join(dataPath, "spj_" + lang.name + "." + lang.fileExtension);
-            if (await fileIsExit(spjName)) {
+            if (await fse.exists(spjName)) {
                 spj = { sourceCode: await fse.readFile(spjName, 'utf8'), language: lang };
                 break;
             }
@@ -131,9 +117,9 @@ export async function readRulesFile(dataName: string): Promise<TestData> {
                 const filePrefix = matchResult[1];
                 if ((await fse.stat(pathLib.join(dataPath, fileName))).isFile()) {
                     const outputPathPrefix = pathLib.join(dataPath, filePrefix);
-                    if (await fileIsExit(outputPathPrefix + '.out')) {
+                    if (await fse.exists(outputPathPrefix + '.out')) {
                         outputFileName = filePrefix + '.out';
-                    } else if (await fileIsExit(outputPathPrefix + '.ans')) {
+                    } else if (await fse.exists(outputPathPrefix + '.ans')) {
                         outputFileName = filePrefix + '.ans';
                     }
                 }
@@ -155,8 +141,8 @@ export async function readRulesFile(dataName: string): Promise<TestData> {
                 score: 100,
                 type: SubtaskScoringType.Summation,
                 cases: cases,
-                needNumber: 0,
-                need:[]
+                need: [],
+				dependency: []
             }],
             spj: spj,
             name: dataName,
